@@ -1,7 +1,7 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
-import tensorflow as tf
+import os
 import pickle
 
 st.set_page_config(page_title="Churn Prediction", page_icon="📊", layout="wide")
@@ -10,7 +10,25 @@ st.title("Customer Churn Prediction")
 st.markdown("Predict whether a bank customer is likely to leave based on their profile.")
 
 # ---------- Load model & transformers ----------
-model = tf.keras.models.load_model('model.h5')
+use_onnx = False
+onnx_session = None
+model = None
+tf = None
+if os.path.exists('model.onnx'):
+    try:
+        import onnxruntime as ort
+        onnx_session = ort.InferenceSession('model.onnx')
+        use_onnx = True
+    except Exception as e:
+        st.warning(f"ONNX runtime unavailable or failed to load model.onnx: {e}. Will try TensorFlow if present.")
+
+if not use_onnx:
+    try:
+        import tensorflow as tf
+        model = tf.keras.models.load_model('model.h5')
+    except Exception as e:
+        st.error(f"Model load error: TensorFlow not available and ONNX not usable: {e}")
+        st.stop()
 
 with open('onehot_encoder_geo.pkl', 'rb') as f:
     label_encoder_geo = pickle.load(f)
@@ -190,7 +208,14 @@ except Exception as e:
 # ---------- Predict (button to run) ----------
 if st.button("Predict"):
     try:
-        prediction = model.predict(input_data_scaled)
+        if use_onnx and onnx_session is not None:
+            input_array = input_data_scaled.astype(np.float32)
+            input_name = onnx_session.get_inputs()[0].name
+            res = onnx_session.run(None, {input_name: input_array})
+            prediction = np.array(res[0])
+        else:
+            prediction = model.predict(input_data_scaled)
+
         prediction_proba = float(np.ravel(prediction)[0])
         prediction_pct = prediction_proba * 100
 
