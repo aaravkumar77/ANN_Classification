@@ -4,7 +4,10 @@ import numpy as np
 import tensorflow as tf
 import pickle
 
+st.set_page_config(page_title="Churn Prediction", page_icon="📊", layout="wide")
+
 st.title("Customer Churn Prediction")
+st.markdown("Predict whether a bank customer is likely to leave based on their profile.")
 
 # ---------- Load model & transformers ----------
 model = tf.keras.models.load_model('model.h5')
@@ -20,16 +23,87 @@ with open('scaler.pkl', 'rb') as f:
 
 
 # ---------- UI: user inputs ----------
-credit_score = st.number_input("Credit Score", min_value=0, max_value=1000, value=600)
-geography = st.selectbox("Geography", ["France", "Spain", "Germany"])
-gender = st.selectbox("Gender", ["Male", "Female"])
-age = st.slider("Age", min_value=18, max_value=100, value=40)
-tenure = st.slider("Tenure (Years)", min_value=0, max_value=10, value=3)
-balance = st.number_input("Balance", min_value=0.0, value=60000.0, step=1.0)
-num_of_products = st.slider("Number of Products", min_value=1, max_value=4, value=2)
-has_cr_card = st.selectbox("Has Credit Card?", [0, 1])
-is_active_member = st.selectbox("Is Active Member?", [0, 1])
-estimated_salary = st.number_input("Estimated Salary", min_value=0.0, value=50000.0, step=1.0)
+with st.sidebar:
+    st.header("How to use")
+    st.write(
+        "Enter the customer information below, then click Predict. "
+        "The model will estimate whether the customer is likely to churn."
+    )
+    st.markdown("---")
+    st.write("**Tip:** Use real customer details for the most accurate result.")
+    st.write("If you want, change the values and re-run prediction.")
+
+st.subheader("Customer profile")
+col1, col2 = st.columns(2)
+with col1:
+    credit_score = st.number_input(
+        "Credit score",
+        min_value=0,
+        max_value=1000,
+        value=600,
+        help="Higher credit score means lower risk."
+    )
+    geography = st.selectbox(
+        "Country",
+        ["France", "Spain", "Germany"],
+        help="Select the customer’s country."
+    )
+    gender = st.selectbox(
+        "Gender",
+        ["Male", "Female"],
+        help="Customer gender."
+    )
+    age = st.slider(
+        "Age",
+        min_value=18,
+        max_value=100,
+        value=40,
+        help="Customer age in years."
+    )
+    tenure = st.slider(
+        "Tenure (years with bank)",
+        min_value=0,
+        max_value=10,
+        value=3,
+        help="How many years the customer has been with the bank."
+    )
+with col2:
+    balance = st.number_input(
+        "Account balance",
+        min_value=0.0,
+        value=60000.0,
+        step=100.0,
+        format="%.2f",
+        help="Customer’s current bank balance."
+    )
+    estimated_salary = st.number_input(
+        "Estimated salary",
+        min_value=0.0,
+        value=50000.0,
+        step=100.0,
+        format="%.2f",
+        help="Customer’s approximate annual income."
+    )
+    num_of_products = st.slider(
+        "Number of bank products",
+        min_value=1,
+        max_value=4,
+        value=2,
+        help="How many bank products the customer has."
+    )
+    has_cr_card = st.selectbox(
+        "Has credit card?",
+        ["No", "Yes"],
+        help="Does the customer have a credit card with the bank?"
+    )
+    is_active_member = st.selectbox(
+        "Is active member?",
+        ["No", "Yes"],
+        help="Whether the customer is actively using their account."
+    )
+
+has_cr_card = 1 if has_cr_card == "Yes" else 0
+is_active_member = 1 if is_active_member == "Yes" else 0
 
 input_data = {
     "CreditScore": credit_score,
@@ -44,9 +118,9 @@ input_data = {
     "EstimatedSalary": estimated_salary
 }
 
-st.write("### Raw input")
+st.markdown("---")
+st.write("### Customer input summary")
 st.json(input_data)
-
 
 # ---------- Prepare DataFrame ----------
 input_df = pd.DataFrame([input_data])   # single-row dataframe
@@ -118,21 +192,24 @@ if st.button("Predict"):
     try:
         prediction = model.predict(input_data_scaled)
         prediction_proba = float(np.ravel(prediction)[0])
+        prediction_pct = prediction_proba * 100
 
         st.write("### Prediction Probability")
-        st.write(f"{prediction_proba:.4f}")
+        st.write(f"{prediction_proba:.4f} ({prediction_pct:.1f}% chance)")
 
         if prediction_proba > 0.5:
             st.error(
                 f"🔴 The customer is likely to churn.\n\n"
-                f"**Churn Probability:** {prediction_proba:.2f}\n\n"
-                f"This means the customer may need attention or retention efforts."
+                f"**Churn Probability:** {prediction_proba:.2f} ({prediction_pct:.1f}%)\n\n"
+                f"That means there is a {prediction_pct:.1f}% chance the customer will leave.\n\n"
+                f"This customer may need attention or retention efforts."
             )
         else:
             st.success(
                 f"🟢 The customer is unlikely to churn.\n\n"
-                f"**Churn Probability:** {prediction_proba:.2f}\n\n"
-                f"This means the customer is most likely to stay with the team."
+                f"**Churn Probability:** {prediction_proba:.2f} ({prediction_pct:.1f}%)\n\n"
+                f"That means there is only a {prediction_pct:.1f}% chance the customer will leave.\n\n"
+                f"This customer is most likely to stay with the team."
             )
 
     except Exception as e:
